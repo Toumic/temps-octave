@@ -1,31 +1,64 @@
-# Cercle des quintes
+# Temps-Octave — le cercle des quintes sur 120 octaves
 
-Prototype Python autonome utilisant uniquement la bibliothèque standard (Tkinter).
+*English summary below.*
 
-Lancer l’application avec :
+Empilez des quintes pures (rapport 3/2) et des quintes tempérées (2^(7/12)) à partir du même La4 = 440 Hz : où les deux calibrages se rencontrent-ils, et de combien s'écartent-ils ? Ce programme Python compare les deux parcours sur **120 octaves** et en tire des résultats vérifiables.
+
+## Ce que le programme calcule
+
+- **412 points** : 206 quintes pures et 206 quintes tempérées, toutes numérotées depuis le même départ (La4) ;
+- **206 rangs communs** : l'écart en cents entre la quinte pure et la quinte tempérée de même rang, du minimum non nul au maximum (jusqu'à environ 401 cents) ;
+- **540 rapports entiers exacts** entre fréquences, dont **17 entre quinte pure et quinte tempérée** (les équivalences d'octave) et **523 à l'intérieur d'un même parcours** ;
+- **42 436 comparaisons pur contre tempéré** (84 666 au total avec les comparaisons internes) ;
+- une analyse **sans la tonique pure** (La4) : `without_pure_tonic`, 84 255 comparaisons, plus aucun unisson ni équivalence d'octave.
+
+## Contenu du dépôt
+
+| Fichier | Rôle |
+|---|---|
+| `main.py` | Le programme : calculs et fenêtre graphique (Tkinter, bibliothèque standard uniquement) |
+| `test_main.py` | 32 tests qui vérifient les calculs |
+| `article_cercle_des_quintes.pdf` | L'article : démarche et résultats |
+| `Référence LA4.txt` | Sortie de référence du programme (84 666 comparaisons, 206 quintes de même rang) |
+| `DOCUMENTATION.md` | Description détaillée de la fenêtre, des vues et des conventions de notation |
+| `NOTES-MISE-A-JOUR.md` | Ce qui a changé entre la version 1 et la version 2 |
+| `LICENSE` | Licence MIT |
+
+## Lancer le programme
+
+Il faut Python 3 avec Tkinter (inclus dans l'installation standard de Python.org, case « tcl/tk and IDLE »). Aucune bibliothèque à installer.
 
 ```powershell
 python main.py
 ```
 
-Le cercle conserve les 12 classes chromatiques. Le menu permet de parcourir :
-
-- les quintes pures, calculées avec le rapport de fréquences 3/2 ;
-- les quintes tempérées, calculées avec `f_suivante = f_actuelle * 2 ** (7/12)` ;
-- l'ordre diatonique à partir de La : La, Si, Do, Ré, Mi, Fa, Sol.
-
-La référence est La4 = 440 Hz ; le cercle complet représente une octave, avec La au nord et les 12 demi-tons répartis régulièrement dans le sens horaire. Le parcours des quintes conserve les fréquences réelles et leur orthographe diatonique ; les altérations précèdent le nom de la note dans les bulles. La notation compacte code les dièses par `+` (#), `x` (##) et `^` (###), et les bémols par `-` (b), `o` (bb) et `*` (bbb), en répétant `^` ou `*` pour chaque groupe supplémentaire de trois. Ainsi, la neuvième quinte depuis La4 s'écrit `+SI9` (B#9), et non Do10. Les altérations s'accumulent sans être ramenées modulo 12 ; par exemple, 12 dièses s'écrivent `^^^^`. Le sélecteur de notation affiche les fréquences en hertz ou le degré chromatique relatif à La (1° à 12°). Les quintes pures et tempérées suivent les mêmes positions de classes de notes, mais leurs fréquences ne sont pas identiques.
-
-Le bouton « Animer » révèle les points et les liaisons pas à pas ; « Arrêter » interrompt l'animation en cours. « Analyser 120 octaves » construit en mémoire deux parcours — quintes pures et tempérées — tous deux à partir de La4, conserve la fréquence réelle et l'orthographe de chaque point, et numérote les quintes depuis ce départ unique. Le rapport vérifie explicitement l'égalité en Hz pour chaque rang commun, puis calcule les écarts minimal non nul et maximal uniquement entre quintes de même rang. Il distingue ces comparaisons des paires dont le rapport de fréquences est un entier, recherchées entre toutes les quintes mémorisées, y compris au sein d'un même tempérament. Les rapports d'octave (puissances de deux) sont un sous-ensemble de ces rapports entiers. Les rapports dont la précision flottante ne permet plus de confirmer un entier sont écartés. Sur la carte, les deux sillages depuis La4 sont affichés ensemble. Dans la carte sphérique 3D, toutes les notes La se confondent au pôle Nord. Les octaves sont des méridiens qui pivotent autour de l'axe Nord-Sud : les longitudes 0 à 120 représentent les 121 positions d'octave et la longitude 121 referme le cycle sur 0. Les 12 demi-tons de chaque octave sont disposés à intervalles égaux sur les latitudes en partant du Nord, dans l'ordre La, La#, Si, Do, Do#, Ré, Ré#, Mi, Fa, Fa#, Sol, Sol#. L'orientation initiale place le nord en haut ; le curseur d'inclinaison permet de changer de point de vue et le bouton de réinitialisation revient à cette orientation. Le bouton « Vue horizontale » déroule les octaves en colonnes et les degrés chromatiques en lignes ; les octaves autour des événements (unissons, rapports entiers, équivalences, écarts minimal et maximal) gardent leur largeur, tandis que les intervalles sans événement sont fortement comprimés et signalés par `//`. Les événements sont repérés par un contour de leur couleur de légende. Des traits fins pointillés carmin relient les paires de fréquences dont le rapport est entier ; ces liens n'élargissent pas l'axe des octaves afin de conserver la visibilité des parcours. La position verticale conserve l'écart réel en cents à l'échelle de 0,42 pixel par cent, mais la séparation visible entre les deux parcours est amplifiée ×2,5. La hauteur du graphique s'ajuste à l'espace disponible pour garder les parcours et la légende visibles ; si la fenêtre est trop basse, la barre de défilement verticale permet d'explorer le reste. Une surface hachurée, de la couleur du parcours le plus haut, remplit l'espace entre les sillages comparables. Les quintes pures ont un trait continu et des marqueurs ronds, les quintes tempérées un trait discontinu et des marqueurs carrés. La légende est répartie sur deux lignes pour rester lisible et ses couleurs correspondent aux tracés. Le bouton « Vue 3D cyclique » revient à la carte 3D rotative, redimensionnée selon la fenêtre ; les sillages suivent la surface et les portions à l'arrière sont atténuées avec la couleur du calibrage concerné. Le jaune indique une égalité exacte. Le tableau conserve toutes les fréquences et octaves réelles. Aucun son n'est généré. L'analyse est calculée une fois par ouverture de l'application et gardée en mémoire vive.
-
-Les calculs peuvent être testés sans ouvrir la fenêtre :
-
-La légende de la carte utilise des symboles assortis au graphique : ligne pleine et cercle pour les quintes pures, ligne pointillée et carré pour les quintes tempérées, anneaux colorés pour les événements sur les points, et lien pointillé carmin pour les rapports entiers dans la vue horizontale. Les hachures montrent l'écart entre les parcours ; `//` signale des octaves comprimées sans événement. La grille représente les octaves et les degrés chromatiques. Les étiquettes précisent les éléments qui ne sont présents que dans la vue horizontale.
-
-**Effet secondaire à connaître (vue « Octaves » de l’application web).** Vers la droite, les surfaces semblent se condenser. Les quintes restent pourtant régulièrement espacées (une tous les 0,585 octave) : c’est l’écart entre quinte pure et quinte tempérée qui grandit de rang en rang (de 0 à environ 401 cents) et donne sa hauteur à chaque bande. Les bandes de plus en plus hautes se chevauchent et forment une masse dense. C’est la signature visuelle de l’erreur cumulée d’une quinte, pas une accumulation de rencontres.
-
-**Mise à jour de novembre 2026 (calculs).** Le programme reprend les règles de l’application web. Les équivalences d’octave entre calibrages, y compris celles dont le rapport est une très grande puissance de 2 (écrit 2^n), sont comptées comme des rapports entiers : 540 rapports entiers au total, dont 17 entre quinte pure et quinte tempérée et 523 à l’intérieur d’un même parcours. Le programme compte aussi les 42 436 comparaisons pur contre tempéré. La fonction `without_pure_tonic` donne la même analyse sans la tonique pure (La4) : 84 255 comparaisons, plus aucun unisson ni équivalence d’octave. Le programme n’a pas pu être exécuté par l’assistant qui l’a modifié : lancez `python -m unittest` pour le valider.
+## Vérifier les calculs
 
 ```powershell
 python -m unittest
 ```
+
+Résultat attendu : `Ran 32 tests … OK`. Validé par l'auteur le 5 novembre 2026.
+
+## Versions
+
+- **Version 1** : le programme d'origine.
+- **Version 2** : calculs alignés sur l'application web (équivalences d'octave comptées comme rapports entiers, comparaisons pur contre tempéré, analyse sans tonique pure), 32 tests réussis.
+
+## Application web
+
+Une version interactive existe : cercle des quintes avec écoute, carte des octaves, sphère 3D, liste des rencontres et rapport détaillé. Elle donne les mêmes chiffres que ce programme.
+
+https://www.cabviva.com/temps-octave
+
+## Licence
+
+MIT — voir `LICENSE`. © 2026 Cabviva.
+
+---
+
+## English summary
+
+Stack pure fifths (3/2) and equal-tempered fifths (2^(7/12)) from the same A4 = 440 Hz, and find where the two tunings meet and how far they drift apart. This standalone Python program (standard library only, Tkinter) compares both paths over **120 octaves**: 412 points, 206 matching ranks, 540 exact integer ratios (17 between pure and tempered, 523 within the same path) and 42,436 pure-versus-tempered comparisons.
+
+Run it with `python main.py`, check the results with `python -m unittest` (32 tests). Licensed under MIT. Interactive web version: https://www.cabviva.com/temps-octave
