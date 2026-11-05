@@ -19,12 +19,15 @@ from main import (
     build_sequence,
     compressed_octave_positions,
     format_accidentals,
+    format_multiple,
     format_note_label,
     globe_coordinates,
     globe_trace_coordinates,
     horizontal_trace_coordinates,
     integer_frequency_multiple,
     octave_position_cents,
+    pair_integer_multiple,
+    without_pure_tonic,
 )
 
 
@@ -887,6 +890,87 @@ class BuildSequenceTests(unittest.TestCase):
         ]
         self.assertEqual(len(legend_rows), 2)
         self.assertEqual(legend_rows[1] - legend_rows[0], 24)
+
+
+class NovemberUpdateTests(unittest.TestCase):
+    """Alignement du programme sur l'application web (novembre 2026)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.analysis = build_cycle_analysis()
+
+    def test_reference_counts_are_unchanged(self) -> None:
+        analysis = self.analysis
+        self.assertEqual(len(analysis.points), 412)
+        self.assertEqual(analysis.comparisons, 84666)
+        self.assertEqual(len(analysis.unisons), 1)
+        self.assertEqual(len(analysis.cross_temperament_unisons), 1)
+        self.assertEqual(len(analysis.corresponding_fifths), 206)
+
+    def test_octave_equivalences_are_counted_as_integer_ratios(self) -> None:
+        analysis = self.analysis
+        self.assertEqual(len(analysis.cross_temperament_octave_matches), 17)
+        self.assertEqual(len(analysis.cross_temperament_integer_multiples), 17)
+        self.assertEqual(len(analysis.internal_integer_multiples), 523)
+        self.assertEqual(len(analysis.integer_multiple_pairs), 540)
+        self.assertEqual(
+            len(analysis.integer_multiple_pairs),
+            len(set(analysis.integer_multiple_pairs)),
+        )
+        for pair in analysis.cross_temperament_octave_matches:
+            self.assertIn(pair, analysis.cross_temperament_integer_multiples)
+            self.assertIn(pair, analysis.integer_multiple_pairs)
+
+    def test_cross_comparisons_count_pure_against_tempered_pairs(self) -> None:
+        pure = sum(1 for point in self.analysis.points if point.temperament == Series.PURE_FIFTHS.value)
+        equal = len(self.analysis.points) - pure
+        self.assertEqual(self.analysis.cross_comparisons, pure * equal)
+        self.assertEqual(self.analysis.cross_comparisons, 42436)
+
+    def test_very_large_power_of_two_is_written_as_power(self) -> None:
+        pair = max(
+            self.analysis.cross_temperament_octave_matches,
+            key=lambda item: abs(item.second.log2_frequency - item.first.log2_frequency),
+        )
+        shift = round(pair.second.log2_frequency - pair.first.log2_frequency)
+        multiple = pair_integer_multiple(pair.first, pair.second)
+        self.assertEqual(multiple, 2 ** abs(shift))
+        self.assertEqual(format_multiple(2**60), "2^60")
+        self.assertEqual(format_multiple(2**10), "1024")
+        self.assertEqual(format_multiple(3 * 2**45), str(3 * 2**45))
+        report = MusicCircleApp._format_integer_multiple(pair)
+        self.assertIn("Rapport de fréquences", report)
+
+    def test_pair_integer_multiple_ignores_internal_pairs_without_exact_ratio(self) -> None:
+        first = self.analysis.points[0]
+        same_series = next(
+            point for point in self.analysis.points[1:] if point.temperament == first.temperament
+        )
+        self.assertEqual(
+            pair_integer_multiple(first, same_series),
+            integer_frequency_multiple(first.frequency_hz, same_series.frequency_hz),
+        )
+
+    def test_without_pure_tonic_removes_only_its_pairs(self) -> None:
+        reduced = without_pure_tonic(self.analysis)
+        self.assertEqual(len(reduced.points), 412)
+        self.assertEqual(reduced.comparisons, 84255)
+        self.assertEqual(reduced.cross_comparisons, 42230)
+        self.assertEqual(len(reduced.unisons), 0)
+        self.assertEqual(len(reduced.cross_temperament_unisons), 0)
+        self.assertEqual(len(reduced.corresponding_fifths), 205)
+        self.assertEqual(len(reduced.cross_temperament_octave_matches), 0)
+        self.assertEqual(len(reduced.cross_temperament_integer_multiples), 0)
+        self.assertEqual(len(reduced.internal_integer_multiples), 523)
+        self.assertEqual(len(reduced.integer_multiple_pairs), 523)
+        # L'analyse d'origine n'est pas modifiée.
+        self.assertEqual(self.analysis.comparisons, 84666)
+        for pair in reduced.corresponding_fifths:
+            for point in (pair.first, pair.second):
+                self.assertFalse(
+                    point.temperament == Series.PURE_FIFTHS.value and point.step_number == 0
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,10 @@ Les calculs peuvent être testés sans ouvrir la fenêtre :
 
 La légende de la carte utilise des symboles assortis au graphique : ligne pleine et cercle pour les quintes pures, ligne pointillée et carré pour les quintes tempérées, anneaux colorés pour les événements sur les points, et lien pointillé carmin pour les rapports entiers dans la vue horizontale. Les hachures montrent l'écart entre les parcours ; `//` signale des octaves comprimées sans événement. La grille représente les octaves et les degrés chromatiques. Les étiquettes précisent les éléments qui ne sont présents que dans la vue horizontale.
 
+**Effet secondaire à connaître (vue « Octaves » de l’application web).** Vers la droite, les surfaces semblent se condenser. Les quintes restent pourtant régulièrement espacées (une tous les 0,585 octave) : c’est l’écart entre quinte pure et quinte tempérée qui grandit de rang en rang (de 0 à environ 401 cents) et donne sa hauteur à chaque bande. Les bandes de plus en plus hautes se chevauchent et forment une masse dense. C’est la signature visuelle de l’erreur cumulée d’une quinte, pas une accumulation de rencontres.
+
+**Mise à jour de novembre 2026 (calculs).** Le programme reprend les règles de l’application web. Les équivalences d’octave entre calibrages, y compris celles dont le rapport est une très grande puissance de 2 (écrit 2^n), sont comptées comme des rapports entiers : 540 rapports entiers au total, dont 17 entre quinte pure et quinte tempérée et 523 à l’intérieur d’un même parcours. Le programme compte aussi les 42 436 comparaisons pur contre tempéré. La fonction `without_pure_tonic` donne la même analyse sans la tonique pure (La4) : 84 255 comparaisons, plus aucun unisson ni équivalence d’octave. Le programme n’a pas pu être exécuté par l’assistant qui l’a modifié : lancez `python -m unittest` pour le valider.
+
 ```powershell
 python -m unittest
 ```

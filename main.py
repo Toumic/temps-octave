@@ -6,7 +6,7 @@ import math
 import sys
 import tkinter as tk
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from functools import wraps
 from tkinter import ttk
@@ -184,6 +184,9 @@ class CycleAnalysis:
     widest_pair: PointPair | None
     comparisons: int
     max_octaves: int
+    # Ajouts de novembre 2026 (valeurs par défaut : le code existant reste valable).
+    internal_integer_multiples: tuple[PointPair, ...] = ()
+    cross_comparisons: int = 0
 
 
 def octave_position_cents(point: CyclePoint) -> float:
@@ -212,6 +215,34 @@ def integer_frequency_multiple(first_hz: float, second_hz: float) -> int | None:
         return None
     tolerance = 2 * (math.ulp(higher) + math.ulp(expected_higher))
     return multiple if abs(higher - expected_higher) <= tolerance else None
+
+
+def pair_integer_multiple(first: CyclePoint, second: CyclePoint) -> int | None:
+    """Rapport entier d'une paire, y compris une puissance de 2 très grande.
+
+    integer_frequency_multiple ne reconnaît pas les rapports au-delà de la précision
+    des nombres décimaux (environ 2^40). Une équivalence d'octave entre calibrages
+    (écart exactement égal à un nombre entier d'octaves) est pourtant un rapport entier :
+    2^n. On la retrouve ici par l'écart des logarithmes, comme dans l'analyse.
+    """
+    multiple = integer_frequency_multiple(first.frequency_hz, second.frequency_hz)
+    if multiple is not None:
+        return multiple
+    if first.temperament == second.temperament:
+        return None
+    gap = first.log2_frequency - second.log2_frequency
+    octave_shift = round(gap)
+    if octave_shift != 0 and abs(gap - octave_shift) <= 1e-12:
+        return 2 ** abs(octave_shift)
+    return None
+
+
+def format_multiple(multiple: int) -> str:
+    """Écrit un rapport entier ; une très grande puissance de 2 s'écrit 2^n."""
+    exponent = multiple.bit_length() - 1
+    if multiple >= 2**40 and multiple == 1 << exponent:
+        return f"2^{exponent}"
+    return str(multiple)
 
 
 def _project_globe_point(
@@ -396,10 +427,12 @@ def build_cycle_analysis(max_octaves: int = MAX_CYCLE_OCTAVES) -> CycleAnalysis:
     cross_temperament_octave_matches: list[PointPair] = []
     cross_temperament_integer_multiples: list[PointPair] = []
     integer_multiple_pairs: list[PointPair] = []
+    internal_integer_multiples: list[PointPair] = []
     closest_non_unison: PointPair | None = None
     closest_cross_temperament: PointPair | None = None
     widest_pair: PointPair | None = None
     comparisons = 0
+    cross_comparisons = 0
 
     for temperament, fifth_ratio in temperaments:
         steps_per_cycle = math.floor(max_octaves / math.log2(fifth_ratio))
@@ -447,6 +480,8 @@ def build_cycle_analysis(max_octaves: int = MAX_CYCLE_OCTAVES) -> CycleAnalysis:
                     pair = PointPair(previous, point, distance_cents)
                     comparisons += 1
                     is_cross_temperament = previous.temperament != point.temperament
+                    if is_cross_temperament:
+                        cross_comparisons += 1
                     is_corresponding_fifth = (
                         is_cross_temperament and previous.step_number == point.step_number
                     )
@@ -467,6 +502,8 @@ def build_cycle_analysis(max_octaves: int = MAX_CYCLE_OCTAVES) -> CycleAnalysis:
                             integer_multiple_pairs.append(pair)
                             if is_cross_temperament:
                                 cross_temperament_integer_multiples.append(pair)
+                            else:
+                                internal_integer_multiples.append(pair)
                         if is_cross_temperament:
                             octave_shift = round(point.log2_frequency - previous.log2_frequency)
                             if (
@@ -477,6 +514,11 @@ def build_cycle_analysis(max_octaves: int = MAX_CYCLE_OCTAVES) -> CycleAnalysis:
                                 <= 1e-12
                             ):
                                 cross_temperament_octave_matches.append(pair)
+                                if multiple is None:
+                                    # Équivalence d'octave de très grand rapport (2^n) : c'est
+                                    # aussi un rapport entier, même si les décimaux ne le voient pas.
+                                    integer_multiple_pairs.append(pair)
+                                    cross_temperament_integer_multiples.append(pair)
                     if (
                         is_corresponding_fifth
                         and not is_unison
@@ -510,6 +552,43 @@ def build_cycle_analysis(max_octaves: int = MAX_CYCLE_OCTAVES) -> CycleAnalysis:
         widest_pair=widest_pair,
         comparisons=comparisons,
         max_octaves=max_octaves,
+        internal_integer_multiples=tuple(internal_integer_multiples),
+        cross_comparisons=cross_comparisons,
+    )
+
+
+def _is_pure_tonic(point: CyclePoint) -> bool:
+    return point.temperament == Series.PURE_FIFTHS.value and point.step_number == 0
+
+
+def without_pure_tonic(analysis: CycleAnalysis) -> CycleAnalysis:
+    """Vue de l'analyse sans la tonique pure (quinte pure de rang 0, La4).
+
+    Les paires qui la contiennent sont retirées des listes et des compteurs ; les points
+    restent. L'écart minimal et l'écart maximal ne sont pas recalculés.
+    """
+
+    def keep(pairs: tuple[PointPair, ...]) -> tuple[PointPair, ...]:
+        return tuple(
+            pair
+            for pair in pairs
+            if not _is_pure_tonic(pair.first) and not _is_pure_tonic(pair.second)
+        )
+
+    equal_points = sum(
+        1 for point in analysis.points if point.temperament != Series.PURE_FIFTHS.value
+    )
+    return replace(
+        analysis,
+        unisons=keep(analysis.unisons),
+        cross_temperament_unisons=keep(analysis.cross_temperament_unisons),
+        corresponding_fifths=keep(analysis.corresponding_fifths),
+        cross_temperament_octave_matches=keep(analysis.cross_temperament_octave_matches),
+        cross_temperament_integer_multiples=keep(analysis.cross_temperament_integer_multiples),
+        integer_multiple_pairs=keep(analysis.integer_multiple_pairs),
+        internal_integer_multiples=keep(analysis.internal_integer_multiples),
+        comparisons=analysis.comparisons - (len(analysis.points) - 1),
+        cross_comparisons=analysis.cross_comparisons - equal_points,
     )
 
 
@@ -1958,7 +2037,7 @@ class MusicCircleApp:
 
     @staticmethod
     def _format_integer_multiple(pair: PointPair) -> str:
-        multiple = integer_frequency_multiple(pair.first.frequency_hz, pair.second.frequency_hz)
+        multiple = pair_integer_multiple(pair.first, pair.second)
         if multiple is None:
             raise ValueError("Le rapport des fréquences de cette paire n'est pas entier.")
         lower = min(pair.first.frequency_hz, pair.second.frequency_hz)
@@ -1966,7 +2045,7 @@ class MusicCircleApp:
         return (
             f"  {pair.first.path} — {pair.first.frequency_hz:.9g} Hz\n"
             f"  {pair.second.path} — {pair.second.frequency_hz:.9g} Hz\n"
-            f"  Rapport de fréquences : {higher:.9g} / {lower:.9g} ≈ {multiple}\n\n"
+            f"  Rapport de fréquences : {higher:.9g} / {lower:.9g} ≈ {format_multiple(multiple)}\n\n"
         )
 
     @animated_sequence
